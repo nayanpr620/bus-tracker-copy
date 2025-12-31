@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Smart Transit | Govt Bus Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Leaflet & Socket.io -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1e40af;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --error: #ef4444;
+      --success: #10b981;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* --- Utilities --- */
+    .hidden {
+      display: none !important;
+    }
+
+    .flex {
+      display: flex;
+    }
+
+    .flex-col {
+      flex-direction: column;
+    }
+
+    .items-center {
+      align-items: center;
+    }
+
+    .justify-between {
+      justify-content: space-between;
+    }
+
+    .justify-center {
+      justify-content: center;
+    }
+
+    .gap-2 {
+      gap: 0.5rem;
+    }
+
+    .gap-4 {
+      gap: 1rem;
+    }
+
+    .p-4 {
+      padding: 1rem;
+    }
+
+    .text-sm {
+      font-size: 0.875rem;
+    }
+
+    .text-xs {
+      font-size: 0.75rem;
+    }
+
+    .font-bold {
+      font-weight: 700;
+    }
+
+    .font-semibold {
+      font-weight: 600;
+    }
+
+    .text-muted {
+      color: var(--text-muted);
+    }
+
+    .text-primary {
+      color: var(--primary);
+    }
+
+    .w-full {
+      width: 100%;
+    }
+
+    .rounded-lg {
+      border-radius: 0.5rem;
+    }
+
+    .shadow {
+      box-shadow: var(--shadow);
+    }
+
+    /* --- Components --- */
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 99px;
+      /* Pill shape */
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      width: 100%;
+      text-align: center;
+      transition: background 0.2s;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--primary);
+      width: auto;
+      padding: 0;
+    }
+
+    .input-group {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      height: 56px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .input-row:last-child {
+      border-bottom: none;
+    }
+
+    .input-row input,
+    .input-row select {
+      border: none;
+      outline: none;
+      flex: 1;
+      font-size: 1rem;
+      background: transparent;
+      margin-left: 10px;
+      color: var(--text);
+    }
+
+    .input-icon {
+      color: var(--text-muted);
+    }
+
+    /* --- Headers --- */
+    .app-header {
+      background: var(--primary);
+      color: white;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow);
+      z-index: 50;
+    }
+
+    .app-header h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .back-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+    }
+
+    /* --- Views --- */
+    .view {
+      flex: 1;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    /* Login View */
+    #view-login {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      background: var(--surface);
+    }
+
+    .login-card {
+      background: white;
+      padding: 2rem;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+
+    .logo-circle {
+      width: 64px;
+      height: 64px;
+      background: #eff6ff;
+      color: var(--primary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      margin: 0 auto 1rem;
+    }
+
+    /* Search View */
+    #view-search {
+      background: var(--bg);
+    }
+
+    .search-container {
+      background: white;
+      padding: 20px;
+      border-radius: 0 0 24px 24px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .swap-btn {
+      color: var(--primary);
+      background: #eff6ff;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: -10px auto;
+      position: relative;
+      z-index: 10;
+      border: 1px solid var(--border);
+    }
+
+    /* Results View */
+    .bus-card {
+      background: var(--surface);
+      margin: 16px;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .bus-card:active {
+      transform: scale(0.98);
+      border-color: var(--primary);
+    }
+
+    /* Tracking View */
+    #map {
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+    }
+
+    .tracking-sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--primary);
+      color: white;
+      padding: 20px;
+      border-radius: 24px 24px 0 0;
+      z-index: 100;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+      margin: 0 auto 16px;
+    }
+
+    /* Sidebar */
+    .sidebar-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 90;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .sidebar-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      background: var(--primary);
+      color: white;
+      z-index: 100;
+      transform: translateX(-100%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar.open {
+      transform: translateX(0);
+    }
+
+    .sidebar-header {
+      padding: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar-menu {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px;
+      color: white;
+      text-decoration: none;
+      font-weight: 500;
+      border-radius: 8px;
+    }
+
+    .menu-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Custom Badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .badge-best {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge-fast {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-circle"
+        style="background:white; color:var(--primary); width:48px; height:48px; font-size:1.5rem">👤</div>
+      <div style="margin-top:12px">
+        <div class="font-bold">Guest User</div>
+        <div class="text-sm" style="opacity:0.8">guest@transit.app</div>
+      </div>
+    </div>
+    <div class="sidebar-menu">
+      <a href="#" class="menu-item" onclick="toggleSidebar(); showView('view-search')">🏠 Home</a>
+      <a href="#" class="menu-item">🌐 Language</a>
+      <a href="#" class="menu-item">💬 Send Feedback</a>
+      <a href="#" class="menu-item">⚙️ Settings</a>
+    </div>
+  </div>
+
+  <!-- VIEW: LOGIN -->
+  <div id="view-login" class="view">
+    <div class="login-card">
+      <div class="logo-circle">🚌</div>
+      <h2 style="margin:0 0 8px 0">Govt Bus Tracker</h2>
+      <p class="text-muted text-sm" style="margin-bottom:24px" id="auth-title">Sign In to continue</p>
+
+      <div class="input-group">
+        <div class="input-row">
+          <span class="input-icon">✉️</span>
+          <input type="email" id="auth-email" placeholder="Email" />
+        </div>
+        <div class="input-row">
+          <span class="input-icon">🔒</span>
+          <input type="password" id="auth-pass" placeholder="Password" />
+          <span class="input-icon">👁️</span>
+        </div>
+      </div>
+
+      <button class="btn" onclick="handleAuth()" id="auth-btn" style="margin-bottom:16px">Sign in</button>
+      <div id="auth-error" class="text-xs text-error" style="height:20px; margin-bottom:10px; color: red;"></div>
+
+      <div class="text-center text-xs text-muted">
+        <span id="auth-toggle-text">Don't have an account?</span>
+        <span class="text-primary font-bold" style="cursor:pointer" onclick="toggleAuthMode()" id="auth-toggle-btn">Sign
+          Up</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW: SEARCH (HOME) -->
+  <div id="view-search" class="view hidden">
+    <div class="app-header">
+      <div class="btn-ghost" style="color:white; font-size:1.5rem" onclick="toggleSidebar()">☰</div>
+      <h1>Tracking</h1>
+    </div>
+
+    <div class="search-container">
+      <div class="input-group shadow">
+        <div class="input-row">
+          <span class="input-icon">👤</span>
+          <!-- Dynamic Routes will be populated here as simplified 'From' -->
+          <select id="route-select">
+            <option value="" disabled selected>Select Route</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="swap-btn">⇅</div>
+
+      <div class="input-group shadow">
+        <div class="input-row">
+          <span class="input-icon">📍</span>
+          <select id="pickup-select" disabled>
+            <option value="" disabled selected>From (Pickup)</option>
+          </select>
+        </div>
+        <div class="input-row" style="border-top:1px solid var(--border)">
+          <span class="input-icon">🏁</span>
+          <select id="drop-select" disabled>
+            <option value="" disabled selected>To (Drop)</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="track-btn" class="btn" onclick="findBuses()" disabled>TRACK</button>
+    </div>
+
+    <div class="p-4">
+      <div class="text-muted text-sm font-semibold" style="margin-bottom:12px">RECENT TRACKING</div>
+      <!-- Empty state or recents -->
+      <div class="bus-card" style="margin:0">
+        <div class="flex items-center gap-4">
+          <div style="font-size:1.5rem">🚌</div>
+          <div>
+            <div class="font-bold">Route 101</div>
+            <div class="text-sm text-muted">Connaught Place -> Delhi Univ</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIEW: RESULTS -->
+  <div id="view-results" class="view hidden" style="background:var(--bg)">
+    <div class="app-header">
+      <button class="back-btn" onclick="showView('view-search')">←</button>
+      <h1>Track Your Bus</h1>
+    </div>
+    <div class="p-4" style="padding-bottom:100px">
+      <div class="input-group shadow">
+        <div class="input-row">
+          <span class="input-icon">🚌</span>
+          <input id="search-filter" placeholder="Filter by Bus No..." onkeyup="filterResults()" />
+        </div>
+      </div>
+      <div id="results-count" class="text-sm font-bold" style="margin-bottom:8px">Searching...</div>
+      <div id="bus-list"></div>
+    </div>
+  </div>
+
+  <!-- VIEW: TRACKING (MAP) -->
+  <div id="view-tracking" class="view hidden">
+    <div class="app-header"
+      style="position:absolute; top:0; left:0; right:0; z-index:20; background:rgba(37,99,235,0.9); backdrop-filter:blur(4px)">
+      <button class="back-btn" onclick="showView('view-results')">←</button>
+      <h1>Live Tracking</h1>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="tracking-sheet">
+      <div class="sheet-handle"></div>
+
+      <!-- Route & Bus Info -->
+      <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:12px">
+        <div>
+          <div class="text-xs" style="opacity:0.8">Tracking Bus</div>
+          <div class="font-bold text-lg" id="sheet-bus-id">...</div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs" style="opacity:0.8">Route</div>
+          <div class="font-bold" id="sheet-route-name">...</div>
+        </div>
+      </div>
+
+      <!-- Nearest Stop -->
+      <div class="flex gap-4 items-center"
+        style="margin-bottom:12px; background:rgba(255,255,255,0.1); padding:10px; border-radius:8px">
+        <div style="font-size:1.5rem">📍</div>
+        <div style="flex:1">
+          <div class="text-xs" style="opacity:0.8">Nearest Stop</div>
+          <div class="font-bold" id="sheet-nearest">...</div>
+          <div class="text-xs" style="opacity:0.7" id="sheet-stop-progress">Stop - of -</div>
+        </div>
+        <div class="text-right">
+          <div class="text-xs" style="opacity:0.7">ETA</div>
+          <div class="font-bold text-lg" id="sheet-eta">-- min</div>
+        </div>
+      </div>
+
+      <!-- Live Stats Grid -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; text-align:center; margin-bottom:12px">
+        <div>
+          <div class="text-xs" style="opacity:0.7">Speed</div>
+          <div class="font-semibold" id="sheet-speed">-- km/h</div>
+        </div>
+        <div>
+          <div class="text-xs" style="opacity:0.7">Crowd</div>
+          <div class="font-semibold" id="sheet-crowd">--%</div>
+        </div>
+        <div title="Based on GPS freshness & report count">
+          <div class="text-xs" style="opacity:0.7">Reliability ℹ️</div>
+          <div class="font-semibold" id="sheet-reliability">--%</div>
+        </div>
+        <div>
+          <div class="text-xs" style="opacity:0.7">Signal</div>
+          <div class="font-semibold" id="sheet-signal">--</div>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div class="flex items-center gap-2" style="font-size:0.9rem">
+        <span id="sheet-status-dot"
+          style="width:10px; height:10px; background:#4ade80; border-radius:50%; display:inline-block"></span>
+        <span id="sheet-status">En route to pickup</span>
+      </div>
+
+      <!-- Progress Bar -->
+      <div style="height:4px; background:rgba(255,255,255,0.2); border-radius:2px; margin-top:12px; overflow:hidden">
+        <div id="sheet-progress" style="height:100%; width:0%; background:white; transition:width 1s"></div>
+      </div>
+
+      <!-- Map Legend -->
+      <div style="display:flex; gap:16px; margin-top:12px; font-size:0.75rem; opacity:0.8">
+        <span>🚌 Your bus</span>
+        <span style="opacity:0.5">🚌 Other buses</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // --- STATE ---
+    let globalRoutes = [];
+    let currentBuses = [];
+    const socket = io();
+    let mapInst = null;
+    let markers = {};
+    let routeLayer = null;
+    let currentUser = null;
+    let isSignup = false;
+
+    // --- HELPER FUNCTIONS ---
+
+    // Format ETA: show "< 1" ONLY if truly close, otherwise real minutes
+    function formatETA(etaMin, bus = null) {
+      if (bus && bus.status === 'PASSED') return 'Passed';
+
+      if (!Number.isFinite(etaMin) || etaMin < 0) return '--';
+
+      // Request: "ETA = 0 → only when remainingDistance === 0"
+      // We will show "0" if it's really 0.
+      // But typically we show rounded minutes. 
+      // User said "Otherwise show rounded minutes".
+      return Math.round(etaMin);
+    }
+
+    // Get crowd level text and color: Low (0-30%), Medium (31-60%), High (61-100%)
+    function getCrowdLevel(crowdPercent) {
+      const crowd = Number(crowdPercent) || 0;
+      if (crowd <= 30) return { text: 'Low', color: '#10b981' }; // green
+      if (crowd <= 60) return { text: 'Medium', color: '#f59e0b' }; // yellow
+      return { text: 'High', color: '#ef4444' }; // red
+    }
+
+    // Get reliability color: 0-40% red, 40-70% yellow, 70-100% green
+    function getReliabilityColor(reliability) {
+      const rel = Number(reliability) || 0;
+      if (rel >= 70) return '#10b981'; // green
+      if (rel >= 40) return '#f59e0b'; // yellow
+      return '#ef4444'; // red
+    }
+
+    // Format signal freshness with timestamp
+    function formatSignal(lastUpdated) {
+      if (!lastUpdated) return { text: '--', color: '#9ca3af' };
+      const ageMs = Date.now() - lastUpdated;
+      const ageSec = Math.round(ageMs / 1000);
+
+      if (ageSec < 10) return { text: `Fresh (${ageSec}s)`, color: '#10b981' };
+      if (ageSec < 30) return { text: `OK (${ageSec}s)`, color: '#f59e0b' };
+      return { text: `Stale (${ageSec}s)`, color: '#ef4444' };
+    }
+
+    // Get status text based on status code and stop name
+    function getStatusText(bus) {
+      if (bus.status === 'PASSED' || bus.hasPassed) {
+        return { text: `⏩ Passed pickup`, color: '#9ca3af' };
+      }
+      if (bus.status === 'AT_STOP') {
+        return { text: `🛑 At ${bus.nearestStop || 'stop'}`, color: '#10b981' };
+      }
+      if (bus.status === 'ARRIVING') {
+        return { text: `🟢 Arriving at ${bus.nearestStop || 'stop'}`, color: '#10b981' };
+      }
+      if (bus.status === 'ON_TIME') {
+        return { text: `🟢 On Time`, color: '#10b981' };
+      }
+      if (bus.status === 'SLOW') {
+        return { text: `🟡 Running Slow`, color: '#f59e0b' };
+      }
+      if (bus.status === 'DELAYED') {
+        return { text: `🔴 Delayed`, color: '#ef4444' };
+      }
+      // Legacy status support
+      if (bus.status === 'ON TIME') {
+        return { text: `🟢 On Time`, color: '#10b981' };
+      }
+      if (bus.status === 'SLIGHT DELAY' || bus.status === 'SLIGHT_DELAY') {
+        return { text: `🟡 Slight delay`, color: '#f59e0b' };
+      }
+      return { text: 'En route', color: '#3b82f6' };
+    }
+
+    // --- NAVIGATION ---
+    function showView(viewId) {
+      document.querySelectorAll('.view').forEach(el => el.classList.add('hidden'));
+      document.getElementById(viewId).classList.remove('hidden');
+      if (viewId === 'view-tracking' && mapInst) {
+        setTimeout(() => mapInst.invalidateSize(), 300);
+      }
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('sidebar-overlay').classList.toggle('open');
+    }
+
+    // --- AUTHENTICATION ---
+    function toggleAuthMode() {
+      isSignup = !isSignup;
+      const title = document.getElementById('auth-title');
+      const btn = document.getElementById('auth-btn');
+      const toggleText = document.getElementById('auth-toggle-text');
+      const toggleBtn = document.getElementById('auth-toggle-btn');
+
+      if (isSignup) {
+        title.textContent = "Create Account";
+        btn.textContent = "Sign Up";
+        toggleText.textContent = "Already have an account?";
+        toggleBtn.textContent = "Sign In";
+      } else {
+        title.textContent = "Sign In to continue";
+        btn.textContent = "Sign In";
+        toggleText.textContent = "Don't have an account?";
+        toggleBtn.textContent = "Sign Up";
+      }
+    }
+
+    async function handleAuth() {
+      const email = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-pass').value;
+      const errorDiv = document.getElementById('auth-error');
+
+      if (!email || !password) {
+        errorDiv.textContent = "Please enter email and password";
+        return;
+      }
+
+      errorDiv.textContent = "Processing...";
+      const endpoint = isSignup ? '/auth/signup' : '/auth/login';
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          currentUser = data.user;
+          // Update Sidebar
+          document.querySelector('.sidebar-header .font-bold').textContent = currentUser.name || 'User';
+          document.querySelector('.sidebar-header .text-sm').textContent = currentUser.email;
+
+          showView('view-search');
+          loadRoutes();
+        } else {
+          errorDiv.textContent = data.error || "Authentication failed";
+        }
+      } catch (err) {
+        errorDiv.textContent = "Network error";
+      }
+    }
+
+    // --- DATA LOADING ---
+    async function loadRoutes() {
+      try {
+        const res = await fetch('/routes');
+        globalRoutes = await res.json();
+        const sel = document.getElementById('route-select');
+        sel.innerHTML = '<option value="" disabled selected>Select Route</option>';
+        globalRoutes.forEach(r => {
+          const opt = document.createElement('option');
+          opt.value = r.id;
+          opt.textContent = r.name;
+          sel.appendChild(opt);
+        });
+
+        // Event Listeners
+        sel.addEventListener('change', onRouteChanged);
+        document.getElementById('pickup-select').addEventListener('change', checkForm);
+        document.getElementById('drop-select').addEventListener('change', checkForm);
+
+      } catch (err) {
+        console.error(err);
+        alert("Failed to load routes server.");
+      }
+    }
+
+    function onRouteChanged() {
+      const routeId = document.getElementById('route-select').value;
+      const route = globalRoutes.find(r => r.id === routeId);
+      if (!route) return;
+
+      const pSel = document.getElementById('pickup-select');
+      const dSel = document.getElementById('drop-select');
+
+      pSel.innerHTML = '<option value="" disabled selected>From (Pickup)</option>';
+      dSel.innerHTML = '<option value="" disabled selected>To (Drop)</option>';
+      pSel.disabled = false;
+      dSel.disabled = false;
+
+      route.stops.forEach(s => {
+        const o1 = document.createElement('option'); o1.value = s.id; o1.textContent = s.name;
+        const o2 = document.createElement('option'); o2.value = s.id; o2.textContent = s.name;
+        pSel.appendChild(o1);
+        dSel.appendChild(o2);
+      });
+      checkForm();
+    }
+
+    function checkForm() {
+      const r = document.getElementById('route-select').value;
+      const p = document.getElementById('pickup-select').value;
+      const d = document.getElementById('drop-select').value;
+      document.getElementById('track-btn').disabled = !(r && p && d);
+    }
+
+    // --- SEARCH ---
+    // --- SEARCH ---
+    async function findBuses(overrideRouteId, overridePickupId, overrideDropId) {
+      // Use overrides if provided, else read from DOM
+      const r = overrideRouteId || document.getElementById('route-select').value;
+      const p = overridePickupId || document.getElementById('pickup-select').value;
+      const d = overrideDropId || document.getElementById('drop-select').value;
+
+      // If regular UI interaction and missing values
+      if (!overrideRouteId && (!r || !p || !d)) return;
+
+      showView('view-results');
+      document.getElementById('bus-list').innerHTML = '<div class="p-4 text-center text-muted">Loading...</div>';
+
+      try {
+        const res = await fetch(`/discover?routeId=${r}&pickupId=${p}&dropId=${d}`);
+        currentBuses = await res.json();
+        renderBusList(currentBuses);
+
+        // AUTO-TRACK logic: If only one bus (or just force it), track immediately
+        if (currentBuses.length > 0) {
+           startTracking(currentBuses[0]);
+        }
+
+        // Subscribe to socket updates
+        socket.emit('join_route', r); // if backend supported room logic
+        socket.off('route:' + r);
+        socket.on('route:' + r, (updates) => {
+          // Update list live? Maybe just keep map live for now to save perf
+          // Only update map state
+          if (!document.getElementById('view-tracking').classList.contains('hidden')) {
+             updateMapMarkers(updates);
+             // Also update the tracked bus info if we are tracking one
+             if (selectedBusId) {
+                const updatedBus = updates.find(b => b.busId === selectedBusId);
+                if (updatedBus) updateSheetFromBus(updatedBus);
+             }
+          }
+        });
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('bus-list').innerHTML = '<div class="p-4 text-center text-error">Failed to find buses.</div>';
+      }
+    }
+
+    function renderBusList(buses) {
+      const list = document.getElementById('bus-list');
+      list.innerHTML = '';
+      document.getElementById('results-count').textContent = `Found ${buses.length} active buses`;
+
+      buses.forEach(b => {
+        const div = document.createElement('div');
+        div.className = 'bus-card';
+
+        // Dynamic badge based on label
+        let badge = '';
+        if (b.label === 'BEST CHOICE') badge = '<span class="badge badge-best">★ BEST CHOICE</span>';
+        else if (b.label === 'FASTEST') badge = '<span class="badge badge-fast">⚡ FASTEST</span>';
+        else if (b.label === 'LESS CROWDED') badge = '<span class="badge" style="background:#dbeafe;color:#1d4ed8">👥 LESS CROWDED</span>';
+        else if (b.label === 'MOST SEATS') badge = '<span class="badge" style="background:#dcfce7;color:#166534">💺 MOST SEATS</span>';
+
+        // Use helper functions for colors
+        const crowdInfo = getCrowdLevel(b.crowd);
+        const reliabilityColor = getReliabilityColor(b.reliability);
+        const statusInfo = getStatusText(b);
+
+        // CUSTOM ETA LOGIC:
+        // If bus has passed pickup, show ETA to Destination instead.
+        let etaDisplay = formatETA(b.etaToPickupMin, b);
+        let etaLabel = 'ETA';
+        let etaColor = 'text-primary';
+
+        if (b.hasPassed || b.status === 'PASSED') {
+          etaDisplay = formatETA(b.etaToDestMin);
+          etaLabel = 'to Dest';
+          etaColor = 'text-muted'; // Greying it out slightly as it's not for pickup
+        }
+
+        // Status indicator color based on new status types
+        const statusColor = b.status === 'PASSED' ? '#9ca3af' :
+          b.status === 'AT_STOP' ? '#10b981' :
+            b.status === 'ARRIVING' ? '#10b981' :
+              b.status === 'ON_TIME' ? '#10b981' :
+                b.status === 'SLOW' ? '#f59e0b' :
+                  b.status === 'DELAYED' ? '#ef4444' : '#3b82f6';
+
+        // Distance to pickup
+        const distanceText = b.distanceToPickupKm ?
+          `${b.distanceToPickupKm.toFixed(1)} km away` :
+          (b.totalStops ? `Stop ${(b.currentStopIndex || 0) + 1}/${b.totalStops}` : '');
+
+        div.innerHTML = `
+          <div class="flex justify-between items-start">
+             <div class="flex items-center gap-3">
+               <div style="font-size:2rem; background:#eff6ff; padding:8px; border-radius:12px; position:relative">
+                 🚌
+                 <span style="position:absolute; bottom:-2px; right:-2px; width:12px; height:12px; background:${statusColor}; border-radius:50%; border:2px solid white"></span>
+               </div>
+               <div>
+                 ${badge ? badge + '<br>' : ''}
+                 <div class="font-bold text-lg">${b.busId}</div>
+                 <div class="text-xs" style="color:${statusInfo.color}">${statusInfo.text}</div>
+               </div>
+             </div>
+             <div class="text-right">
+                <div class="text-xs text-muted">${etaLabel}</div>
+                <div class="font-bold ${etaColor}" style="font-size:1.5rem">${etaDisplay}<span style="font-size:0.75rem">min</span></div>
+                <div class="text-xs text-muted">${distanceText}</div>
+             </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border)">
+            <div class="text-center">
+              <div class="text-xs text-muted">Speed</div>
+              <div class="font-semibold">${b.speed === 0 ? '<span style="color:#10b981">Stopped</span>' : b.speed + ' km/h'}</div>
+            </div>
+            <div class="text-center">
+              <div class="text-xs text-muted">Crowd</div>
+              <div class="font-semibold" style="color:${crowdInfo.color}">${crowdInfo.text} (${b.crowd}%)</div>
+            </div>
+            <div class="text-center">
+              <div class="text-xs text-muted">Reliability</div>
+              <div class="font-semibold" style="color:${reliabilityColor}">${b.reliability || 80}%</div>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <button class="btn" style="width:100%; padding:12px" onclick="event.stopPropagation(); startTracking(window.currentBusesList[${buses.indexOf(b)}])">
+              📍 Track This Bus
+            </button>
+          </div>
+        `;
+        div.onclick = () => startTracking(b);
+        list.appendChild(div);
+      });
+
+      // Store for button onclick access
+      window.currentBusesList = buses;
+    }
+
+    // --- TRACKING ---
+    let selectedBusId = null;
+
+    function initMap() {
+      mapInst = L.map('map', { zoomControl: false }).setView([28.6139, 77.2090], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInst);
+      routeLayer = L.layerGroup().addTo(mapInst);
+    }
+
+    function startTracking(bus) {
+      selectedBusId = bus.busId;
+      window.hasAlertedArrival = false; // Reset alert flag on new track
+      showView('view-tracking');
+
+      // Update Bottom Sheet
+      const routeName = globalRoutes.find(r => r.id === document.getElementById('route-select').value)?.name;
+      document.getElementById('sheet-route-name').textContent = routeName || 'Unknown Route';
+      updateSheetFromBus(bus);
+
+      // Draw Route
+      const routeId = document.getElementById('route-select').value;
+      const routeData = globalRoutes.find(r => r.id === routeId);
+      if (routeData) {
+        routeLayer.clearLayers();
+        const latlngs = routeData.polyline.map(p => [p.lat, p.lng]);
+        L.polyline(latlngs, { color: '#2563eb', weight: 5, opacity: 0.8 }).addTo(routeLayer);
+
+        // Add stop markers
+        routeData.stops.forEach((stop, idx) => {
+          const isFirst = idx === 0;
+          const isLast = idx === routeData.stops.length - 1;
+          const color = isFirst ? '#10b981' : isLast ? '#ef4444' : '#64748b';
+          L.circleMarker([stop.lat, stop.lng], {
+            radius: 8,
+            fillColor: color,
+            color: 'white',
+            weight: 2,
+            fillOpacity: 1
+          }).bindTooltip(stop.name, { permanent: false }).addTo(routeLayer);
+        });
+
+        mapInst.fitBounds(latlngs, { padding: [50, 100] });
+      }
+
+      // Initial Marker
+      updateMapMarkers([bus]);
+    }
+
+    function updateSheetFromBus(bus) {
+      // Bus ID and basic info
+      document.getElementById('sheet-bus-id').textContent = bus.busId || '--';
+
+      // Nearest stop with approaching text when arriving
+      const statusInfo = getStatusText(bus);
+      if (bus.status === 'AT_STOP' || bus.status === 'ARRIVING') {
+        document.getElementById('sheet-nearest').textContent = statusInfo.text.replace(/^[🛑🟢]\s*/, '');
+      } else {
+        document.getElementById('sheet-nearest').textContent = bus.nearestStop || 'En route...';
+      }
+
+      // Stop progress (Stop X of Y)
+      const currentStop = (bus.currentStopIndex || 0) + 1;
+      const totalStops = bus.totalStops || '?';
+      document.getElementById('sheet-stop-progress').textContent = `Stop ${currentStop} of ${totalStops}`;
+
+      // ETA using helper (shows < 1 instead of 0)
+      // Same logic: if passed, show dest ETA
+      let etaDisplay = formatETA(bus.etaToPickupMin);
+      let etaLabel = 'ETA';
+
+      if (bus.hasPassed || bus.status === 'PASSED') {
+        etaDisplay = formatETA(bus.etaToDestMin);
+        etaLabel = 'to Dest';
+      }
+
+      document.getElementById('sheet-eta').textContent = etaDisplay + ' min';
+      // We might want to update label too, but the HTML structure is fixed in updateSheetFromBus?
+      // Let's find the label element nearby.
+      // The HTML is: <div class="text-xs" style="opacity:0.7">ETA</div>
+      // We need to target it. Let's add an ID to that label in HTML first or select it relative.
+      // Update: I'll assume I can't easily change the static HTML structure without a replace, 
+      // but I can select it via `sheet-eta` parent.
+      const etaValEl = document.getElementById('sheet-eta');
+      if (etaValEl && etaValEl.previousElementSibling) {
+        etaValEl.previousElementSibling.textContent = etaLabel;
+      }
+
+      // Speed - show "Stopped" when 0
+      if (bus.speed === 0) {
+        document.getElementById('sheet-speed').innerHTML = '<span style="color:#10b981">Stopped</span>';
+      } else {
+        document.getElementById('sheet-speed').textContent = (bus.speed || 0) + ' km/h';
+      }
+
+      // Crowd with level text
+      const crowdInfo = getCrowdLevel(bus.crowd);
+      document.getElementById('sheet-crowd').innerHTML = `<span style="color:${crowdInfo.color}">${crowdInfo.text}</span>`;
+
+      // Reliability with color
+      const reliabilityColor = getReliabilityColor(bus.reliability);
+      document.getElementById('sheet-reliability').innerHTML = `<span style="color:${reliabilityColor}">${bus.reliability || 80}%</span>`;
+
+      // Signal freshness with timestamp
+      const signalInfo = formatSignal(bus.lastUpdated);
+      document.getElementById('sheet-signal').textContent = signalInfo.text;
+      document.getElementById('sheet-signal').style.color = signalInfo.color;
+
+      // Status text and dot color
+      document.getElementById('sheet-status').textContent = statusInfo.text;
+      document.getElementById('sheet-status-dot').style.background = statusInfo.color;
+
+      // Progress bar (t is 0-1 polyline position)
+      const progress = Math.min(100, Math.round((bus.t || 0) * 100));
+      document.getElementById('sheet-progress').style.width = progress + '%';
+
+      // ARRIVAL POPUP LOGIC
+      // Check if we reached destination (or drop)
+      // distanceToDropKm is available in bus object (if computed in discover/simulation correctly)
+      // In simulation we just have remainingKm which IS distance to dest.
+      // Let's use etaToDestMin < 0.5 or distance < 0.2
+      // We need to ensure we don't spam.
+      if (!window.hasAlertedArrival && bus.etaToDestMin <= 0.5 && bus.etaToDestMin >= 0) {
+        window.hasAlertedArrival = true;
+        setTimeout(() => {
+          alert("🎉 You have reached your destination!");
+        }, 500);
+      }
+    }
+
+    function updateMapMarkers(busesList) {
+      busesList.forEach(b => {
+        const latlng = [b.lat, b.lng];
+        const isSelected = b.busId === selectedBusId;
+
+        // Create icon with selection styling
+        // ADD ROTATION: transform: rotate(...)
+        // Bus icon usually faces right or front. 🚌 emoji faces Left by default on many systems, 
+        // but let's assume standard rotation. 
+        // We might need to adjust rotationOffset. 
+        // emoji 🚌 faces LEFT. So if heading is 0 (North), we need to rotate it?
+        // Actually, let's just rotate the div wrapper.
+        // If bus heads North (0 deg), emoji should point North.
+        // Emoji 🚌 faces LEFT (West) by default. So West (270) should be 0 rotation.
+        // So Rotation = Heading + 90? Or Heading - 90?
+        // Let's try Rotation = Heading. If 🚌 faces Left:
+        // Heading 270 (West) -> Rotate 0?
+        // Let's just blindly rotate = Heading and see. Usually 🚌 emoji isn't perfect for this, 
+        // but we can try flipping it or using an arrow.
+        // Better: Use a transform.
+        const rotation = (b.heading || 0);
+        // Flip emoji to face right first? using scaleX(-1)? No, 🚌 faces Left.
+        // Let's assume we want front of bus to point to heading.
+        // Front of 🚌 is Left.
+        // So if Heading is West (270), we want no rotation.
+        // Rotation = Heading - 270?
+
+        // Let's try a simpler approach: 
+        // Just rotate it equal to heading, but we might need an offset if the emoji isn't "North-facing" or "East-facing" by default.
+        // 🚌 faces LEFT.
+        // So for it to face NORTH (0), we need to rotate 90 deg Clockwise.
+        // So Rotation = Heading + 90.
+
+        const icon = L.divIcon({
+          className: 'custom-bus-icon',
+          html: `<div style="
+            font-size:${isSelected ? '36px' : '22px'}; 
+            opacity:${isSelected ? '1' : '0.8'}; 
+            filter:${isSelected ? 'drop-shadow(0 0 8px #2563eb) drop-shadow(0 2px 4px rgba(0,0,0,0.4))' : 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))'}; 
+            transition:all 0.3s;
+            transform: rotate(${rotation + 90}deg);
+            transform-origin: center center;
+            ${isSelected ? 'z-index:1000;' : ''}
+          ">🚌</div>`,
+          iconSize: isSelected ? [40, 40] : [25, 25]
+        });
+
+        if (!markers[b.busId]) {
+          markers[b.busId] = L.marker(latlng, { icon, zIndexOffset: isSelected ? 1000 : 0 }).addTo(mapInst);
+        } else {
+          // Update position and icon (for selection change)
+          markers[b.busId].setLatLng(latlng);
+          markers[b.busId].setIcon(icon);
+          markers[b.busId].setZIndexOffset(isSelected ? 1000 : 0);
+        }
+
+        // Update sheet for selected bus
+        if (isSelected) {
+          updateSheetFromBus(b);
+        }
+      });
+    }
+
+    // NOTE: Booking functionality removed - this is a pure tracking app
+
+    // Initialize
+    // Initialize
+    async function initApp() {
+        initMap();
+        
+        // Auto-login dummy
+        currentUser = { name: "Guest", email: "guest@example.com" };
+        
+        // Hardcoded Route params
+        const routeId = "R_UK_DEL";
+        const pickupId = "S1"; 
+        const dropId = "S18";
+        
+        // Populate globalRoutes so other functions work
+        try {
+            const res = await fetch('/routes');
+            globalRoutes = await res.json();
+            
+            // Populate select just in case (though we hide it)
+            const sel = document.getElementById('route-select');
+            if(sel) {
+                sel.innerHTML = '';
+                globalRoutes.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.id;
+                    opt.textContent = r.name;
+                    sel.appendChild(opt);
+                });
+                sel.value = routeId;
+            }
+        } catch(e) { console.error("Route load fail", e); }
+
+        // Skip to tracking
+        findBuses(routeId, pickupId, dropId);
+    }
+
+    window.onload = initApp;
+  </script>
+</body>
+
+</html>
